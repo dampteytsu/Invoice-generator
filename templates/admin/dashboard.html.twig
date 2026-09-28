@@ -1,0 +1,102 @@
+{% extends '@EasyAdmin/page/content.html.twig' %}
+
+{% set invoice_crud = 'App\\Controller\\Admin\\InvoiceCrudController' %}
+
+{% set currency = company ? company.currency : '' %}
+
+{% block content_title %}{{ is_super_admin ? 'All companies' : company.name }}{% endblock %}
+
+{% block page_actions %}
+    <a class="btn btn-primary" href="{{ ea_url().setController(invoice_crud).setAction('new') }}">
+        <i class="fa fa-plus"></i> New invoice
+    </a>
+{% endblock %}
+
+{% block main %}
+    {% if company and is_company_admin and (not company.address or not company.hasBankDetails) %}
+        <div class="alert alert-warning">
+            <i class="fa fa-building"></i>
+            Your company details aren't complete yet.
+            <a href="{{ path('app_my_company') }}" class="alert-link">Add your address, logo and bank details</a>
+            so they appear on your invoices.
+        </div>
+    {% endif %}
+    {% if is_super_admin %}
+        <div class="alert alert-info small">
+            <i class="fa fa-circle-info"></i>
+            You're a super admin, so you're seeing totals across every company. The amounts may be in different currencies.
+        </div>
+    {% endif %}
+
+    <div class="row g-3 mb-4">
+        {% set cards = [
+            {label: 'Invoices', value: stats.count, icon: 'fa-file-invoice', money: false},
+            {label: 'Total billed', value: stats.billed, icon: 'fa-coins', money: true},
+            {label: 'Paid', value: stats.paid, icon: 'fa-circle-check', money: true},
+            {label: 'Outstanding', value: stats.outstanding, icon: 'fa-hourglass-half', money: true},
+        ] %}
+        {% for card in cards %}
+            <div class="col-6 col-lg-3">
+                <div class="card h-100 stat-card">
+                    <div class="card-body">
+                        <div class="text-muted small"><i class="fa {{ card.icon }}"></i> {{ card.label }}</div>
+                        <div class="fs-4 fw-semibold mt-1">
+                            {% if card.money %}{{ currency }} {{ card.value|number_format(2) }}{% else %}{{ card.value }}{% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    {% if stats.overdue > 0 %}
+        <div class="alert alert-danger">
+            <i class="fa fa-triangle-exclamation"></i>
+            {{ stats.overdue }} invoice{{ stats.overdue > 1 ? 's are' : ' is' }} past the due date and not yet paid.
+        </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header fw-semibold">Recent invoices</div>
+        {% if recent is empty %}
+            <div class="card-body text-muted">
+                No invoices yet. <a href="{{ ea_url().setController(invoice_crud).setAction('new') }}">Create your first invoice</a>.
+            </div>
+        {% else %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Invoice #</th>
+                            {% if is_super_admin %}<th>Company</th>{% endif %}
+                            <th>Bill to</th>
+                            <th>Date</th>
+                            <th>Due</th>
+                            <th>Status</th>
+                            <th class="text-end">Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for inv in recent %}
+                            <tr>
+                                <td><a href="{{ ea_url().setController(invoice_crud).setAction('edit').setEntityId(inv.id) }}">{{ inv.invoiceNumber }}</a></td>
+                                {% if is_super_admin %}<td>{{ inv.company.name }}</td>{% endif %}
+                                <td>{{ inv.billToName }}</td>
+                                <td>{{ inv.invoiceDate|date('d M Y') }}</td>
+                                <td class="{{ inv.overdue ? 'text-danger fw-semibold' }}">{{ inv.dueDate|date('d M Y') }}</td>
+                                <td><span class="badge badge-status-{{ inv.status }}">{{ inv.statusLabel }}</span></td>
+                                <td class="text-end">{{ inv.currency }} {{ inv.total|number_format(2) }}</td>
+                                <td class="text-end text-nowrap">
+                                    <a href="{{ path('invoice_print', {id: inv.id}) }}" target="_blank" title="View / print"><i class="fa fa-print"></i></a>
+                                    &nbsp;
+                                    <a href="{{ path('invoice_pdf', {id: inv.id, download: 1}) }}" title="Download PDF"><i class="fa fa-file-pdf"></i></a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

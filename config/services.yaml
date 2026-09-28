@@ -1,0 +1,19 @@
+parameters:
+    app.logo_dir: '%kernel.project_dir%/public/uploads/logo'
+    # Sender for security notifications. Override with MAILER_FROM in .env.local
+    env(MAILER_FROM): 'Invoicer <no-reply@localhost>'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        bind:
+            string $logoDir: '%app.logo_dir%'
+            string $mailFrom: '%env(MAILER_FROM)%'
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/DependencyInjection/'
+            - '../src/Entity/'
+            - '../src/Kernel.php'

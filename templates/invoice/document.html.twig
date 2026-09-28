@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice {{ invoice.invoiceNumber }} – {{ company.name }}</title>
+    {% if not for_pdf %}<meta name="viewport" content="width=device-width, initial-scale=1">{% endif %}
+    {% set brand = company.brandColor %}
+    {% set brand_text = company.brandTextColor %}
+    {% set brand_light = company.brandColorLight %}
+    {% set brand_ink = company.brandColorOnWhite %}
+    <style>
+        @page { margin: 14mm 14mm 16mm 14mm; }
+        * { box-sizing: border-box; }
+        body {
+            font-family: {{ for_pdf ? '"DejaVu Sans", sans-serif' : '"Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' }};
+            font-size: {{ for_pdf ? '9.5pt' : '14px' }};
+            color: #1f2933;
+            margin: 0;
+            background: {{ for_pdf ? '#ffffff' : '#eef1f4' }};
+            line-height: 1.4;
+        }
+        .sheet { background: #fff; }
+        {% if not for_pdf %}
+        .sheet { max-width: 820px; margin: 24px auto; padding: 40px 44px; box-shadow: 0 2px 12px rgba(0,0,0,.08); border-radius: 6px; }
+        .toolbar { max-width: 820px; margin: 20px auto 0; text-align: right; }
+        .toolbar a, .toolbar button {
+            display: inline-block; margin-left: 6px; padding: 8px 14px; font: inherit; font-size: 13px;
+            border: 1px solid #c8d0d9; background: #fff; color: #1f2933; border-radius: 4px; cursor: pointer; text-decoration: none;
+        }
+        .toolbar .primary { background: {{ brand }}; border-color: {{ brand }}; color: {{ brand_text }}; }
+        @media print {
+            body { background: #fff; }
+            .toolbar { display: none; }
+            .sheet { box-shadow: none; margin: 0; padding: 0; max-width: none; border-radius: 0; }
+        }
+        @media (max-width: 640px) { .sheet { padding: 20px 16px; margin: 12px; } }
+        {% endif %}
+
+        table { border-collapse: collapse; width: 100%; }
+        td, th { vertical-align: top; }
+        .muted { color: #6b7785; }
+        .small { font-size: 0.86em; }
+        .right { text-align: right; }
+        .accent { color: {{ brand_ink }}; }
+
+        .header td { padding: 0; }
+        .logo { max-height: 70px; max-width: 200px; margin-bottom: 8px; }
+        .company-name { font-size: 1.35em; font-weight: bold; margin: 0 0 2px; }
+        .doc-title { font-size: 2.1em; font-weight: bold; letter-spacing: 3px; color: {{ brand_ink }}; margin: 0 0 8px; }
+        .meta td { padding: 2px 0 2px 12px; }
+        .meta td.label { color: #6b7785; text-align: right; white-space: nowrap; }
+        .meta td.value { text-align: right; font-weight: bold; white-space: nowrap; }
+
+        .rule { border-top: 3px solid {{ brand }}; margin: 18px 0 16px; height: 0; }
+
+        .box-title { font-size: 0.78em; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: {{ brand_ink }}; margin-bottom: 4px; }
+        .billto-name { font-weight: bold; font-size: 1.08em; }
+
+        .items { margin-top: 18px; }
+        .items th {
+            background: {{ brand }}; color: {{ brand_text }}; font-size: 0.82em; text-transform: uppercase; letter-spacing: .5px;
+            padding: 8px 8px; text-align: left;
+        }
+        .items td { padding: 8px 8px; border-bottom: 1px solid #e3e8ed; }
+        .items tr:nth-child(even) td { background: #f7f9fa; }
+        .items .num { text-align: right; white-space: nowrap; }
+        .items .idx { width: 28px; color: #6b7785; }
+
+        .totals { width: 58%; margin-left: 42%; margin-top: 10px; }
+        .totals td { padding: 5px 8px; }
+        .totals td.amt { text-align: right; white-space: nowrap; width: 38%; }
+        .totals tr.sub td { border-top: 1px solid #c8d0d9; font-weight: bold; }
+        .totals tr.grand td {
+            background: {{ brand }}; color: {{ brand_text }}; font-weight: bold; font-size: 1.12em; padding: 9px 8px;
+        }
+
+        .words { margin-top: 12px; padding: 8px 10px; background: {{ brand_light }}; border-left: 3px solid {{ brand }}; font-style: italic; }
+
+        .footer-boxes { margin-top: 22px; }
+        .footer-boxes > tbody > tr > td { width: 50%; padding-right: 14px; }
+        .footer-boxes > tbody > tr > td + td { padding-right: 0; padding-left: 14px; }
+        .kv td { padding: 1px 0; }
+        .kv td.k { color: #6b7785; width: 38%; padding-right: 8px; }
+        .terms { white-space: pre-line; }
+
+        .status {
+            display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 0.78em; font-weight: bold;
+            text-transform: uppercase; letter-spacing: 1px; border: 1px solid;
+        }
+        .status-paid { color: #1e7b34; border-color: #1e7b34; }
+        .status-sent { color: #1b5f9e; border-color: #1b5f9e; }
+        .status-draft { color: #6b7785; border-color: #6b7785; }
+        .status-cancelled { color: #b3261e; border-color: #b3261e; }
+
+        .thanks { margin-top: 26px; text-align: center; color: #6b7785; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+{% if mask_payment_details|default(false) %}
+    <div style="max-width: 820px; margin: 16px auto 0; padding: 10px 14px; background: #fff4e5; border: 1px solid #f0c36d; border-radius: 4px; font-size: 13px;">
+        Super admin view: account and Mobile Money numbers are masked. The company and its customers see the full details.
+    </div>
+{% endif %}
+{% if not for_pdf %}
+    <div class="toolbar">
+        <a href="{{ path('admin') }}">← Back to admin</a>
+        <a href="{{ path('invoice_pdf', {id: invoice.id, download: 1}) }}">Download PDF</a>
+        <button type="button" class="primary" onclick="window.print()">Print</button>
+    </div>
+{% endif %}
+
+<div class="sheet">
+    {# ── Header: company (left) / invoice meta (right) ── #}
+    <table class="header">
+        <tr>
+            <td style="width: 55%;">
+                {% if logo %}<img class="logo" src="{{ logo }}" alt="{{ company.name }}"><br>{% endif %}
+                <div class="company-name">{{ company.name }}</div>
+                {% if company.address %}<div>{{ company.address|nl2br }}</div>{% endif %}
+                <div class="small muted" style="margin-top: 4px;">
+                    {% if company.phone %}Tel: {{ company.phone }}<br>{% endif %}
+                    {% if company.email %}{{ company.email }}<br>{% endif %}
+                    {% if company.website %}{{ company.website }}<br>{% endif %}
+                    {% if company.tin %}<strong>TIN:</strong> {{ company.tin }}{% endif %}
+                </div>
+            </td>
+            <td style="width: 45%; text-align: right;">
+                <div class="doc-title">{{ invoice.taxable ? 'TAX INVOICE' : 'INVOICE' }}</div>
+                <table class="meta" style="width: auto; margin-left: auto;">
+                    <tr><td class="label">Invoice No.</td><td class="value">{{ invoice.invoiceNumber }}</td></tr>
+                    <tr><td class="label">Invoice Date</td><td class="value">{{ invoice.invoiceDate|date('d M Y') }}</td></tr>
+                    <tr><td class="label">Due Date</td><td class="value">{{ invoice.dueDate|date('d M Y') }}</td></tr>
+                    <tr><td class="label">Status</td><td class="value"><span class="status status-{{ invoice.status }}">{{ invoice.statusLabel }}</span></td></tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <div class="rule"></div>
+
+    {# ── Bill to ── #}
+    <table>
+        <tr>
+            <td style="width: 60%;">
+                <div class="box-title">Bill To</div>
+                <div class="billto-name">{{ invoice.billToName }}</div>
+                {% if invoice.billToAddress %}<div>{{ invoice.billToAddress|nl2br }}</div>{% endif %}
+                {% if invoice.billToContact %}<div class="small muted">{{ invoice.billToContact }}</div>{% endif %}
+                {% if invoice.billToTin %}<div class="small"><strong>TIN:</strong> {{ invoice.billToTin }}</div>{% endif %}
+            </td>
+            <td style="width: 40%; text-align: right;">
+                <div class="box-title">Amount Due</div>
+                <div style="font-size: 1.6em; font-weight: bold;" class="accent">{{ invoice.currency }} {{ invoice.total|number_format(2) }}</div>
+                <div class="small muted">by {{ invoice.dueDate|date('d M Y') }}</div>
+            </td>
+        </tr>
+    </table>
+
+    {# ── Line items ── #}
+    <table class="items">
+        <thead>
+            <tr>
+                <th class="idx">#</th>
+                <th class="num" style="width: 11%;">Qty</th>
+                <th>Description</th>
+                <th class="num" style="width: 18%;">Unit Price ({{ invoice.currency }})</th>
+                <th class="num" style="width: 18%;">Amount ({{ invoice.currency }})</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in invoice.items %}
+                <tr>
+                    <td class="idx">{{ loop.index }}</td>
+                    <td class="num">{{ item.quantity|number_format(item.quantity == item.quantity|round ? 0 : 2) }}</td>
+                    <td>{{ item.description|nl2br }}</td>
+                    <td class="num">{{ item.unitPrice|number_format(2) }}</td>
+                    <td class="num">{{ item.amount|number_format(2) }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {# ── Totals: Ghana NHIL / GETFund / (COVID) / VAT ── #}
+    <table class="totals">
+        <tr>
+            <td>Subtotal</td>
+            <td class="amt">{{ invoice.subtotal|number_format(2) }}</td>
+        </tr>
+        {% if invoice.taxable %}
+            <tr>
+                <td>NHIL ({{ invoice.nhilRate|number_format(1) }}%)</td>
+                <td class="amt">{{ invoice.nhilAmount|number_format(2) }}</td>
+            </tr>
+            <tr>
+                <td>GETFund Levy ({{ invoice.getfundRate|number_format(1) }}%)</td>
+                <td class="amt">{{ invoice.getfundAmount|number_format(2) }}</td>
+            </tr>
+            {% if invoice.covidRate > 0 %}
+                <tr>
+                    <td>COVID-19 Levy ({{ invoice.covidRate|number_format(1) }}%)</td>
+                    <td class="amt">{{ invoice.covidAmount|number_format(2) }}</td>
+                </tr>
+            {% endif %}
+            {% if invoice.taxMode == 'compound' %}
+                <tr class="sub">
+                    <td>Total before VAT</td>
+                    <td class="amt">{{ invoice.valueBeforeVat|number_format(2) }}</td>
+                </tr>
+            {% endif %}
+            <tr>
+                <td>VAT ({{ invoice.vatRate|number_format(1) }}%)</td>
+                <td class="amt">{{ invoice.vatAmount|number_format(2) }}</td>
+            </tr>
+        {% endif %}
+        <tr class="grand">
+            <td>TOTAL ({{ invoice.currency }})</td>
+            <td class="amt">{{ invoice.total|number_format(2) }}</td>
+        </tr>
+    </table>
+
+    <div class="words small"><strong>Amount in words:</strong> {{ amount_in_words }}</div>
+
+    {% if invoice.notes %}
+        <div style="margin-top: 14px;">
+            <div class="box-title">Notes</div>
+            <div class="terms">{{ invoice.notes }}</div>
+        </div>
+    {% endif %}
+
+    {# ── Bank details / Terms ── #}
+    {% if company.hasBankDetails or company.terms %}
+        <table class="footer-boxes">
+            <tr>
+                <td>
+                    {% if company.hasBankDetails %}
+                        <div class="box-title">Payment Details</div>
+                        <table class="kv small">
+                            {% if company.bankName %}<tr><td class="k">Bank</td><td>{{ company.bankName }}</td></tr>{% endif %}
+                            {% if company.bankAccountName %}<tr><td class="k">Account Name</td><td>{{ company.bankAccountName }}</td></tr>{% endif %}
+                            {% if company.bankAccountNumber %}<tr><td class="k">Account No.</td><td><strong>{{ mask_payment_details|default(false) ? company.maskedBankAccountNumber : company.bankAccountNumber }}</strong></td></tr>{% endif %}
+                            {% if company.bankBranch %}<tr><td class="k">Branch</td><td>{{ company.bankBranch }}</td></tr>{% endif %}
+                            {% if company.swiftCode %}<tr><td class="k">SWIFT / Sort</td><td>{{ company.swiftCode }}</td></tr>{% endif %}
+                            {% if company.mobileMoney %}<tr><td class="k">Mobile Money</td><td>{{ mask_payment_details|default(false) ? company.maskedMobileMoney : company.mobileMoney }}</td></tr>{% endif %}
+                        </table>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if company.terms %}
+                        <div class="box-title">Terms &amp; Conditions</div>
+                        <div class="terms small">{{ company.terms }}</div>
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+    {% endif %}
+
+    <div class="thanks">Thank you for your business.</div>
+</div>
+</body>
+</html>

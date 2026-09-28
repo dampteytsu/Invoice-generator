@@ -1,0 +1,21 @@
+Hello,
+
+The payment details printed on {{ company.name }}'s invoices were changed.
+
+When:    {{ entry.changedAt|date('d M Y, H:i') }} (server time)
+By:      {{ entry.changedBy }}
+From IP: {{ entry.ipAddress ?: 'unknown' }}
+
+What changed:
+{% for c in entry.changes %}
+  - {{ c.label }}: {{ c.old ?: '(empty)' }} -> {{ c.new ?: '(empty)' }}
+{% endfor %}
+
+If you made this change, you don't need to do anything.
+
+If you did NOT make this change, act now. Someone may be trying to redirect your customers' payments:
+  1. Sign in and change your password.
+  2. Check and correct the details under My company > Company settings.
+  3. Tell your customers to use only payment details they have confirmed with you directly.
+
+This message was sent to all administrators of {{ company.name }}.
